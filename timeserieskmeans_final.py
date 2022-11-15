@@ -19,40 +19,51 @@ from sklearn.preprocessing import PowerTransformer
 
 import sys
 
+
+def optimal_k(dataframe,min,max):
+  Sum_of_squared_distances = []
+  K = range(min,max)
+  for k in K:
+      km = KMeans(n_clusters=k)
+      km = km.fit(dataframe)
+      Sum_of_squared_distances.append(km.inertia_)
+
+  plt.plot(K, Sum_of_squared_distances, 'bx-')
+  plt.xlabel('k')
+  plt.ylabel('Sum_of_squared_distances')
+  plt.title('Elbow Method For Optimal k')
+  plt.show()
+  
+
+
 def kmeans(csv,k,k_seeds,xaxis, yaxis,x_scaler = None, y_scaler= None):
   
   # preprossing 
-  df = pd.read_csv(f'{csv}')
-  df = df.dropna()
-  df['Day'] = df.index +1
+  df = pd.read_csv(f'{csv}',lineterminator='\n')
 
-  
+  df[f'{xaxis}'] = pd.to_datetime(df[f'{xaxis}'])
+  # df =  df[df[f'{yaxis}'] != 0]
+  df['ts'] = df[f'{xaxis}'].values.astype(np.int64) // 10 ** 9
+
   # scaling options: MinMaxScaler,minmax_scale,MaxAbsScaler,StandardScaler,RobustScaler,Normalizer,QuantileTransformer,PowerTransformer
   if x_scaler is not None:
-    df[[f'{xaxis}']] = x_scaler().fit_transform(df[[f'{xaxis}']])
+    df[[f'ts']] = x_scaler().fit_transform(df[[f'ts']])
   if y_scaler is not None:
     df[[f'{yaxis}']] = y_scaler().fit_transform(df[[f'{yaxis}']])
 
+  data = df[['ts',f'{yaxis}']]
 
 
-  #assuming first column is the datetime column
-  df.iloc[:,0]= pd.to_datetime(df.iloc[:,0])
-
-  data = df[[f'{xaxis}',f'{yaxis}']].reset_index().drop('index',axis=1)
-  model = TimeSeriesKMeans(n_clusters=k, metric="dtw", max_iter=10,random_state = k_seeds)
+  
+  model = KMeans(init="random",n_clusters=k,n_init=10,max_iter=300,random_state=4)
   model.fit(data)
 
-  #data you want to predict
   y=model.predict(data)
-
-  # date data
-  x = df['Day']
 
   centroids = model.cluster_centers_
 
   #plotting the data
   plt.style.use('seaborn')
-  plt.rcParams['font.family'] = 'Times New Roman' 
   plt.rcParams['font.size'] = 14 
   plt.rcParams['axes.labelsize'] = 12 
   plt.rcParams['axes.labelweight'] = 'bold' 
@@ -60,16 +71,17 @@ def kmeans(csv,k,k_seeds,xaxis, yaxis,x_scaler = None, y_scaler= None):
   plt.rcParams['image.interpolation'] = 'none' 
   plt.rcParams['figure.figsize'] = (12, 10) 
   plt.rcParams['axes.grid']=True
-  data_c = df.copy()
+  data_c = data.copy()
   data_c['Class']=y
+  print(data_c)
 
-  sns.scatterplot(x=f"{xaxis}",y=f'{yaxis}',hue='Class',data=data_c,palette='plasma')
+  sns.scatterplot(x='ts',y=f'{yaxis}',hue='Class',data=data_c,palette='plasma')
   plt.scatter(centroids[:,0] , centroids[:,1] , s = 250, color = 'k',alpha = 0.9)
 
-  dtw_score = dtw(x, y)
-  print("The DTW score is", dtw_score)
+
 
   return plt.show()
+
 
 
 if __name__ == "__main__":
